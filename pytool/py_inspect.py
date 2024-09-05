@@ -5,7 +5,8 @@ import os
 
 funcdict = {"class":[],
             "def":[],
-            "class method": []}
+            "class method": [],
+            "import": []}
             
 math_symbols = [
         "+",  # Plus - Addition
@@ -162,6 +163,7 @@ def inspect_file(path):
     filename = file.split(".")[0]
 
     classes_and_defs = []
+    imports = []
     
     print(f"Reading {file}...")
     
@@ -174,7 +176,9 @@ def inspect_file(path):
     for c in content:
         if c.strip() != '':
             c = cleanup(c)
-            if c.strip().startswith("def "):
+            if c.strip().startswith("import") or c.strip().startswith("from"):
+                imports.append(c.strip())
+            elif c.strip().startswith("def "):
                 if classflag == 1 and (c.startswith("\t") or c.startswith(" ")):
                     classes_and_defs.append(c.replace(c.strip()[:3], "[class]def"))
                 elif classflag == 1 and c.startswith("def "):
@@ -193,6 +197,8 @@ def inspect_file(path):
             funcdict["class method"].append((f[2], f[1], f[3]))
         else:
             funcdict[f[0]].append((f[2], f[1], f[3]))
+            
+    funcdict["import"] = imports
     
     mode = f"{filename}>>"
 
@@ -200,7 +206,7 @@ def inspect_file(path):
         cmd = input(mode)
         cmd = cmd.strip()
         
-        if cmd.strip() == "":
+        if cmd == "":
             continue
 
         if cmd.lower() == 'q':
@@ -208,13 +214,19 @@ def inspect_file(path):
             del classes_and_defs
             funcdict = {"class":[],
                         "def":[],
-                        "class method": []}
+                        "class method": [],
+                        "import": []}
             return
             
         print()
         
-        if cmd.lower() == "l":
+        if cmd.lower() == "list":
             print("\n".join(classes_and_defs))
+            continue
+            
+        if cmd.lower() == "imports":
+            print("\n".join(funcdict["import"]))
+            print()
             continue
             
         if " --" not in cmd:
