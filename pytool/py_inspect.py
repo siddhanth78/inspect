@@ -2,6 +2,9 @@ import sys
 import re
 import timeit
 import os
+from prompt_toolkit import prompt
+from prompt_toolkit.completion import PathCompleter
+from prompt_toolkit.completion import WordCompleter
 
 funcdict = {"class":[],
             "def":[],
@@ -192,18 +195,26 @@ def inspect_file(path):
             
     funcs = map(get_name_with_args, classes_and_defs)
     
+    names = []
+    
     for f in funcs:
         if f[0] == "[class]def":
             funcdict["class method"].append((f[2], f[1], f[3]))
         else:
             funcdict[f[0]].append((f[2], f[1], f[3]))
+        names.append(f[2])
             
     funcdict["import"] = imports
+    
+    coms = ["imports", "list", "--c", "--m"]
+    coms.extend(names)
+    
+    wcompleter = WordCompleter(coms, ignore_case=True)
     
     mode = f"{filename}>>"
 
     while True:
-        cmd = input(mode)
+        cmd = prompt(mode, completer=wcompleter)
         cmd = cmd.strip()
         
         if cmd == "":
@@ -272,16 +283,27 @@ def inspect_file(path):
             print("invalid arg")
 
 
-while True:
-    user = input(">>")
-    
-    if user.strip() == "":
-        continue
+def main():
+    completer = PathCompleter()
 
-    if user.strip().lower() == 'q':
-        break
+    while True:
+        try:
+            user = prompt(">>", completer=completer)
+            
+            if user.strip() == "":
+                continue
+            if user.strip().lower() == 'q':
+                break
+            if os.path.exists(user.strip()):
+                inspect_file(user.strip())
+            else:
+                print("Invalid path")
+        except KeyboardInterrupt:
+            print("\nOperation cancelled by user.")
+            break
+        except EOFError:
+            print("\nExiting...")
+            break
 
-    if os.path.exists(user.strip()):
-        inspect_file(user.strip())
-    else:
-        print("invalid path")
+if __name__ == "__main__":
+    main()
