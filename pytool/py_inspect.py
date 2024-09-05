@@ -1,9 +1,11 @@
 import sys
 import re
 import timeit
+import os
 
 funcdict = {"class":[],
-            "def":[]}
+            "def":[],
+            "class method": []}
             
 math_symbols = [
         "+",  # Plus - Addition
@@ -82,9 +84,77 @@ def func_arg_len(fwa):
     args = re.sub("'([^']*)'", "", args)
 
     return args.count(",")+1 if "self" not in args else args.count(",")
-
+    
+def get_func_content(f, content):
+    
+    cflag = 0
+    body = []
+    
+    openfl = 0
+    
+    for c in content:
+        if c.strip().startswith("def ") or c.strip().startswith("class "):
+            if f in get_name_with_args(c)[1]:
+                cflag = 1
+                ind = 0
+                li = list(c)
+                for l in  li:
+                    if l == " " or l == "\t":
+                        ind += 1
+                    else:
+                        break
+                body.append(c)
+                continue
+        if cflag == 1:
+            ic = 0
+            if c.strip() == "":
+                body.append(c)
+                continue
+                
+            if c.strip().startswith("#"):
+                body.append(c)
+                continue
+                
+            if c.count("'''") == 1 and openfl == 0:
+                openfl = 1
+                body.append(c)
+                continue
+                
+            if c.count("\"\"\"") == 1 and openfl == 0:
+                openfl = 1
+                body.append(c)
+                continue
+                
+            if c.count("'''") == 1 and openfl == 1:
+                openfl = 0
+                body.append(c)
+                continue
+                
+            if c.count("\"\"\"") == 1 and openfl == 1:
+                openfl = 0
+                body.append(c)
+                continue
+                
+            if openfl == 1:
+                body.append(c)
+                continue
+                
+            li = list(c)
+            for l in  li:
+                if l == " " or l == "\t":
+                    ic += 1
+                else:
+                    break
+            if ic > ind:
+                body.append(c)
+            else:
+                return body
+    return body
+       
 
 def inspect_file(path):
+
+    global funcdict
 
     path = path.replace("\\", "/")
 
@@ -92,8 +162,6 @@ def inspect_file(path):
     filename = file.split(".")[0]
 
     classes_and_defs = []
-    classes = []
-    defs = []
     
     print(f"Reading {file}...")
     
@@ -102,43 +170,65 @@ def inspect_file(path):
         
     print("Extracting classes and functions...")
 
+    classflag = 0
     for c in content:
-        if c.strip().startswith("def "):
+        if c.strip() != '':
             c = cleanup(c)
-            classes_and_defs.append(c)
-        elif c.strip().startswith("class "):
-            c = cleanup(c)
-            classes_and_defs.append(c)
+            if c.strip().startswith("def "):
+                if classflag == 1 and (c.startswith("\t") or c.startswith(" ")):
+                    classes_and_defs.append(c.replace(c.strip()[:3], "[class]def"))
+                elif classflag == 1 and c.startswith("def "):
+                    classflag = 0
+                    classes_and_defs.append(c)
+                else:
+                    classes_and_defs.append(c)
+            elif c.strip().startswith("class "):
+                classes_and_defs.append(c)
+                classflag = 1
             
     funcs = map(get_name_with_args, classes_and_defs)
     
     for f in funcs:
-        funcdict[f[0]].append((f[2], f[1], f[3]))
-        
-    for c in funcdict["class"]:
-        classes.append(c[0])
-    for d in funcdict["def"]:
-        defs.append(d[0])
-        
-    del content
+        if f[0] == "[class]def":
+            funcdict["class method"].append((f[2], f[1], f[3]))
+        else:
+            funcdict[f[0]].append((f[2], f[1], f[3]))
     
-    mode = f"in>>{filename}>>"
+    mode = f"{filename}>>"
 
     while True:
         cmd = input(mode)
         cmd = cmd.strip()
+        
+        if cmd.strip() == "":
+            continue
 
         if cmd.lower() == 'q':
+            del content
+            del classes_and_defs
+            funcdict = {"class":[],
+                        "def":[],
+                        "class method": []}
             return
+            
+        print()
         
         if cmd.lower() == "l":
             print("\n".join(classes_and_defs))
+            continue
+            
+        if " --" not in cmd:
+            print("invalid command")
             continue
             
         cmdli = cmd.split(" --")
         
         cmd = cmdli[0].strip()
         arg = cmdli[1].strip()
+        
+        if arg == "":
+            print("missing arg")
+            continue
 
         if arg == 'm':
             for ds in funcdict["def"]:
@@ -147,22 +237,39 @@ def inspect_file(path):
             for cs in funcdict["class"]:
                 if cmd in cs[0]:
                     print(f"Name: {cs[0]}\nType: 'class'\nFunction: {cs[1]}\nArgument length: {cs[2]}\n")
-            continue
-        elif arg == 'r':
-            alen = func_arg_len(cmd)
+            for cm in funcdict["class method"]:
+                if cmd in cm[0]:
+                    print(f"Name: {cm[0]}\nType: 'class method'\nFunction: {cm[1]}\nArgument length: {cm[2]}\n")
+        elif arg == 'c':
+            funcli = []
+            for ds in funcdict["def"]:
+                if cmd == ds[0]:
+                    funcli.append(ds[1])
+            for cs in funcdict["class"]:
+                if cmd == cs[0]:
+                    funcli.append(cs[1])
+            for cm in funcdict["class method"]:
+                if cmd == cm[0]:
+                    funcli.append(cm[1])
+            bodies = []
+            for f in funcli:
+                body = get_func_content(f, content)
+                print("\n".join(body))
+                print()
         else:
-            print("invalid command")
+            print("invalid arg")
 
 
 while True:
     user = input(">>")
+    
+    if user.strip() == "":
+        continue
 
     if user.strip().lower() == 'q':
         break
 
-    user = user.split(" --")
-
-    if user[-1].lower().strip() == "in":
-        inspect_file(user[0].strip())
+    if os.path.exists(user.strip()):
+        inspect_file(user.strip())
     else:
-        print("invalid command")
+        print("invalid path")
