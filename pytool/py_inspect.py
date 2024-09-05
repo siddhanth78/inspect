@@ -176,6 +176,9 @@ def inspect_file(path):
     print("Extracting classes and functions...")
 
     classflag = 0
+    classname = ""
+    clmethods = []
+    
     for c in content:
         if c.strip() != '':
             c = cleanup(c)
@@ -184,6 +187,7 @@ def inspect_file(path):
             elif c.strip().startswith("def "):
                 if classflag == 1 and (c.startswith("\t") or c.startswith(" ")):
                     classes_and_defs.append(c.replace(c.strip()[:3], "[class]def"))
+                    clmethods.append((classname,c))
                 elif classflag == 1 and c.startswith("def "):
                     classflag = 0
                     classes_and_defs.append(c)
@@ -192,6 +196,7 @@ def inspect_file(path):
             elif c.strip().startswith("class "):
                 classes_and_defs.append(c)
                 classflag = 1
+                classname = c.strip().replace(c[:6], "").split("(")[0].strip()
             
     funcs = map(get_name_with_args, classes_and_defs)
     
@@ -202,12 +207,14 @@ def inspect_file(path):
             funcdict["class method"].append((f[2], f[1], f[3]))
         else:
             funcdict[f[0]].append((f[2], f[1], f[3]))
-        names.append(f[2])
+        
+        if "__init__" not in f[2]:
+            names.append(f[2])
             
     funcdict["import"] = imports
     
     coms = ["imports", "list", "--c", "--m"]
-    coms.extend(names)
+    coms.extend(list(set(names)))
     
     wcompleter = WordCompleter(coms, ignore_case=True)
     
@@ -228,8 +235,6 @@ def inspect_file(path):
                         "class method": [],
                         "import": []}
             return
-            
-        print()
         
         if cmd.lower() == "list":
             print("\n".join(classes_and_defs))
@@ -256,13 +261,13 @@ def inspect_file(path):
         if arg == 'm':
             for ds in funcdict["def"]:
                 if cmd in ds[0]:
-                    print(f"Name: {ds[0]}\nType: 'def'\nFunction: {ds[1]}\nArgument length: {ds[2]}\n")
+                    print(f"Name: {ds[0]}\nType: 'def'\nFunction: {ds[1]}\nNum params: {ds[2]}\n")
             for cs in funcdict["class"]:
                 if cmd in cs[0]:
-                    print(f"Name: {cs[0]}\nType: 'class'\nFunction: {cs[1]}\nArgument length: {cs[2]}\n")
+                    print(f"Name: {cs[0]}\nType: 'class'\nFunction: {cs[1]}\nNum params: {cs[2]}\n")
             for cm in funcdict["class method"]:
                 if cmd in cm[0]:
-                    print(f"Name: {cm[0]}\nType: 'class method'\nFunction: {cm[1]}\nArgument length: {cm[2]}\n")
+                    print(f"Name: {cm[0]}\nType: 'class method'\nFunction: {cm[1]}\nNum params: {cm[2]}\n")
         elif arg == 'c':
             funcli = []
             for ds in funcdict["def"]:
@@ -279,6 +284,82 @@ def inspect_file(path):
                 body = get_func_content(f, content)
                 print("\n".join(body))
                 print()
+        elif arg[0] == 't':
+            try:
+                if len(arg) == 1:
+                    alen = 0
+                else:
+                    arg_, alen = arg.split(" ")
+                    alen = int(alen)
+            except:
+                print("invalid format")
+                continue
+                
+            funcli = []
+            ftype = ""
+            
+            for ds in funcdict["def"]:
+                if cmd == ds[0] and alen == ds[2]:
+                    funcli.append(ds[0])
+                    ftype = "def"
+            for cs in funcdict["class"]:
+                if cmd == cs[0]:
+                    funcli.append(cs[0])
+                    ftype = "class"
+            for cm in funcdict["class method"]:
+                if cmd == cm[0]:
+                    print("class methods can be tested by initializing class object first")
+                    break
+                            
+            if funcli == []:
+                print("function not found")
+                continue
+                    
+            init = '\n'.join(funcdict["import"]) + '\n'
+            
+            inargs = []
+            
+            if ftype == "class":
+                for cl in clmethods:
+                    if funcli[0] in cl[0] and " __init__" in cl[1]:
+                        alen = func_arg_len(cl[1])
+                        break
+                
+            for i in range(alen):
+                inarg = input(f"{funcli[0]}({','.join(inargs)} [arg {i+1}]>>")
+                inargs.append(inarg)
+                
+            func_ = f"{funcli[0]}({','.join(inargs)})"
+            
+            if ftype == "class":
+                clm = prompt(f"{func_}>>", completer = wcompleter)
+                clm = clm.strip()
+                
+                if clm == "__init__":
+                    print("__init__ cannot be tested")
+                    continue
+                
+                if clm not in names:
+                    print("method not found")
+                    continue
+                    
+                func_ = func_ + '.' + clm
+                
+                for cms in clmethods:
+                    if funcli[0] in cms[0] and clm in cms[1]:
+                        alen = func_arg_len(cms[1])
+                        break
+                        
+                inargs = []
+                        
+                for i in range(alen):
+                    inarg = input(f"{func_}({','.join(inargs)} [arg {i+1}]>>")
+                    inargs.append(inarg)
+                
+                func_ = f"{func_}({','.join(inargs)})"
+                   
+            print(func_)
+            
         else:
             print("invalid arg")
 
