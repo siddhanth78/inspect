@@ -213,7 +213,7 @@ def inspect_file(path):
             
     funcdict["import"] = imports
     
-    coms = ["imports", "list", "--c", "--m"]
+    coms = ["imports", "list", "--c", "--m", "--t"]
     coms.extend(list(set(names)))
     
     wcompleter = WordCompleter(coms, ignore_case=True)
@@ -335,6 +335,10 @@ def inspect_file(path):
                 clm = prompt(f"{func_}>>", completer = wcompleter)
                 clm = clm.strip()
                 
+                if clm == "":
+                    print("no class method selected")
+                    continue
+                
                 if clm == "__init__":
                     print("__init__ cannot be tested")
                     continue
@@ -366,17 +370,37 @@ def inspect_file(path):
 
 def main():
     completer = PathCompleter()
+    
+    currpath = os.path.expanduser("~").replace("\\", "/")
+    
+    os.chdir(currpath)
 
     while True:
         try:
-            user = prompt(">>", completer=completer)
+            user = prompt(f"{currpath}>>", completer=completer)
+            user=  user.strip()
             
-            if user.strip() == "":
+            if user == "":
                 continue
-            if user.strip().lower() == 'q':
+            if user.lower() == 'q':
                 break
-            if os.path.exists(user.strip()):
-                inspect_file(user.strip())
+            if user == "..":
+                currpath = os.path.dirname(currpath)
+                os.chdir(currpath)
+                continue
+            if os.path.exists(user):
+                currpath = os.path.join(currpath, user).replace("\\", "/")
+                if os.path.isfile(currpath) and user.endswith(".py"):
+                    filepath = currpath
+                    currpath = os.path.dirname(currpath)
+                    os.chdir(currpath)
+                    inspect_file(filepath)
+                elif os.path.isfile(currpath) and user.endswith(".py") == False:
+                    print("can inspect .py files only")
+                    currpath = os.path.dirname(currpath)
+                else:
+                    os.chdir(currpath)
+                continue
             else:
                 print("Invalid path")
         except KeyboardInterrupt:
