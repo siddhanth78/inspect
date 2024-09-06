@@ -213,7 +213,7 @@ def inspect_file(path):
         if "__init__" not in f[2]:
             names.append(f[2])
 
-    funcdict["import"] = imports
+    funcdict["import"] = list(set(imports))
 
     coms = [
         "__CONTENT__",
