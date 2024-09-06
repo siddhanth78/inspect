@@ -15,15 +15,14 @@ class PP():
         self.y = y
         
     def check(self):
-        self.y == y
-        self.x == x
-        return
+    
+        x,y = 2,3
         
-PP()
+        return (self.x == x, self.y == y)
     
-def main(x,y):
-    print(x,y)
-    return
+def add(x,y):
+    return x+y
     
-
-main()
+if __name__ == "__main__":
+    main()
+    PP(1,2)
