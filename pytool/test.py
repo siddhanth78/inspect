@@ -1,3 +1,5 @@
+import py_inspect.inspect_file
+
 def main():
     print("hello")
     return

@@ -160,6 +160,8 @@ def inspect_file(path):
 
     path = path.replace("\\", "/")
 
+    sys.path.append("/".join(path.split("/")[:-1]))
+
     file = path.split("/")[-1]
     filename = file.split(".")[0]
 
@@ -213,7 +215,15 @@ def inspect_file(path):
 
     funcdict["import"] = imports
 
-    coms = ["imports", "list", "--c", "--m", "--t", "content"]
+    coms = [
+        "__CONTENT__",
+        "__FUNCTIONS__",
+        "__IMPORTS__",
+        "__RUN__",
+        "--c",
+        "--m",
+        "--t",
+    ]
     coms.extend(list(set(names)))
 
     wcompleter = WordCompleter(coms, ignore_case=True)
@@ -234,18 +244,68 @@ def inspect_file(path):
             funcdict = {"class": [], "def": [], "class method": [], "import": []}
             return
 
-        if cmd.lower() == "list":
+        if cmd == "__FUNCTIONS__":
             print("\n".join(classes_and_defs))
             continue
 
-        if cmd.lower() == "imports":
+        if cmd == "__IMPORTS__":
             print("\n".join(funcdict["import"]))
             print()
             continue
 
-        if cmd.lower() == "content":
-            print("\n".join(content))
+        if cmd == "__CONTENT__":
+            print(lines)
             print()
+            continue
+
+        if cmd == "__RUN__":
+            imflag = 0
+
+            imnames = []
+
+            for im in funcdict["import"]:
+                try:
+                    if "." in im:
+                        cim = im.split(".")[0]
+                        cim = cim.strip()
+                        if cim not in imnames:
+                            try:
+                                importlib.import_module(cim)
+                                imnames.append(cim)
+                            except ImportError as e:
+                                print(f"Error importing {cim}: {e}")
+                                imflag = 1
+                            except ModuleNotFoundError as e:
+                                print(f"Error importing {cim}: {e}")
+                                imflag = 1
+                            except:
+                                print(
+                                    f"Error importing {im}. Check if module exists or any errors in module."
+                                )
+                                imflag = 1
+                    importlib.import_module(im)
+                except ImportError as e:
+                    print(f"Error importing {im}: {e}")
+                    imflag = 1
+                except ModuleNotFoundError as e:
+                    print(f"Error importing {im}: {e}")
+                    imflag = 1
+                except:
+                    print(
+                        f"Error importing {im}. Check if module exists or any errors in module."
+                    )
+                    imflag = 1
+
+            if imflag == 1:
+                continue
+
+            try:
+                exec(lines, globals())
+                print()
+            except Exception as e:
+                print(f"Error executing: {e}")
+            except:
+                print("Execution failed")
             continue
 
         if " --" not in cmd:
@@ -345,16 +405,34 @@ def inspect_file(path):
 
             fdisp = f"{funcli[0]}({','.join(str(ina) for ina in inargs)})"
 
+            imflag = 0
+
             for im in funcdict["import"]:
                 try:
                     importlib.import_module(im)
                 except:
                     print(
-                        "Error importing {im}. Check if module exists or any errors in module."
+                        f"Error importing {im}. Check if module exists or any errors in module."
                     )
+                    imflag = 1
 
-            mod = importlib.import_module(filename)
-            func_ = getattr(mod, funcli[0], None)
+            try:
+                mod = importlib.import_module(filename)
+                func_ = getattr(mod, funcli[0], None)
+            except ImportError as e:
+                print(f"Error importing {filename}: {e}")
+                imflag = 1
+            except ModuleNotFoundError as e:
+                print(f"Error importing {filename}: {e}")
+                imflag = 1
+            except:
+                imflag = 1
+                print(
+                    f"Error importing {filename}. Check if module exists or any errors in module."
+                )
+
+            if imflag == 1:
+                continue
 
             try:
                 f_ = func_(*inargs)
@@ -413,11 +491,15 @@ def inspect_file(path):
 
                 fdisp = f"{fdisp}({','.join(str(ina) for ina in inargs)})"
 
-            print(f"{fdisp}\n")
+            try:
+                print(f"{fdisp}\n")
 
-            print(f_)
+                print(f_)
 
-            print("\nExecution complete")
+                print("\nExecution complete")
+
+            except:
+                print("\nExecution failed")
 
         else:
             print("invalid arg")
@@ -442,6 +524,12 @@ def main():
             if user == "..":
                 currpath = os.path.dirname(currpath)
                 os.chdir(currpath)
+                continue
+            if user == "--l":
+                with os.scandir(currpath) as it:
+                    for entry in it:
+                        print(entry.name)
+                print()
                 continue
             if os.path.exists(user):
                 currpath = os.path.join(currpath, user).replace("\\", "/")
